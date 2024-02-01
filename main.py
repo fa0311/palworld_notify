@@ -122,9 +122,6 @@ class PalworldNotify:
                 indicator=True,
             )
 
-            self.prev_data = next_data
-            self.prev_data_raw = next_data_raw
-
             join = outer_data[outer_data["_merge"] == "left_only"]
             leave = outer_data[outer_data["_merge"] == "right_only"]
 
@@ -166,6 +163,9 @@ class PalworldNotify:
                 logger.info("Restarting the server...")
                 client.run("Save", enforce_id=False)
                 client.run("Shutdown", "5", enforce_id=False)
+
+            self.prev_data = next_data
+            self.prev_data_raw = next_data_raw
 
 
 if __name__ == "__main__":
