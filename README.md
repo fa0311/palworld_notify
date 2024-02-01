@@ -1,10 +1,16 @@
 # Palworld Notify
 
+Send palworld entry/exit logs to Discord and LINE.
 
-## Dependence
+## Setup
+
 ```sh
 python -V
 Python 3.10.12
+```
+
+```sh
+sh setup.sh
 ```
 
 ## Config example
