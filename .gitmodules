@@ -1,0 +1,3 @@
+[submodule "rcon"]
+	path = rcon
+	url = https://github.com/fossum/rcon.git

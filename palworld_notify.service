@@ -1,0 +1,23 @@
+[Unit]
+Description=Palworld dedicated server
+Wants=network-online.target
+
+After=syslog.target network.target nss-lookup.target network-online.target palworld.service
+
+[Service]
+Environment="LD_LIBRARY_PATH=./linux64"
+ExecStart=/home/steam/palworld_notify/.venv/bin/python /home/steam/palworld_notify/main.py
+
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s INT $MAINPID
+
+User=steam
+Group=steam
+StandardOutput=journal
+Restart=on-failure
+WorkingDirectory=/home/steam/palworld_notify
+
+
+[Install]
+WantedBy=multi-user.target
+
