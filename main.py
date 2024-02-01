@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     join_message: str = Field(default="{name} ({steamid}) has joined the server.")
     leave_message: str = Field(default="{name} ({steamid}) has left the server.")
 
+    join_broadcast_message: str = Field(
+        default="{name} ({steamid}) has joined the server."
+    )
+    leave_broadcast_message: str = Field(
+        default="{name} ({steamid}) has left the server."
+    )
+    restart_on_last_leave: bool = Field(default=False)
+
     wait_time: int = Field(default=5)
     log_level: LogLevel = Field(default=LogLevel.INFO)
 
@@ -84,54 +92,90 @@ def send_discord_webhook(notification_message: str):
     requests.post(env.discord_webhook_url, json=json)
 
 
-def main():
-    left_data, right_data = None, None
+class PalworldNotify:
+    prev_data: Optional[pd.DataFrame] = None
+    prev_data_raw: Optional[pd.DataFrame] = None
 
-    with Client(env.ip, env.port, passwd=env.password) as client:
-        while True:
+    def check(self):
+        with Client(env.ip, env.port, passwd=env.password) as client:
             players = client.run("ShowPlayers", enforce_id=False)
-            right_data_raw = pd.read_csv(StringIO(players))
-            right_data = right_data_raw[right_data_raw["playeruid"] != 0]
+            next_data_raw = pd.read_csv(StringIO(players))
 
-            left_data = right_data if left_data is None else left_data
+            next_data = next_data_raw[next_data_raw["playeruid"] != 0]
+            next_data = next_data.drop(columns=["steamid"])
+
+            if self.prev_data is None:
+                self.prev_data = next_data
+            if self.prev_data_raw is None:
+                self.prev_data_raw = next_data_raw
 
             outer_data = pd.merge(
-                right_data,
-                left_data,
+                next_data,
+                self.prev_data,
+                how="outer",
+                indicator=True,
+            )
+            outer_raw_data = pd.merge(
+                next_data_raw,
+                self.prev_data_raw,
                 how="outer",
                 indicator=True,
             )
 
+            self.prev_data = next_data
+            self.prev_data_raw = next_data_raw
+
             join = outer_data[outer_data["_merge"] == "left_only"]
             leave = outer_data[outer_data["_merge"] == "right_only"]
 
+        with Client(env.ip, env.port, passwd=env.password) as client:
             if not join.empty or not leave.empty:
                 logger.info("\n" + outer_data.to_string())
 
             for _, row in join.iterrows():
-                text = env.join_message.format(**row)
+                data = outer_raw_data[
+                    outer_raw_data["playeruid"] == row["playeruid"]
+                ].iloc[0]
+                text = env.join_message.format(**data)
+                text_broadcast = env.join_broadcast_message.format(**data)
+                text_broadcast = text_broadcast.replace(" ", "_")
+                client.run("Broadcast", text_broadcast, enforce_id=False)
                 if env.line_notify_token:
                     send_line_notify(text)
                 if env.discord_webhook_url:
                     send_discord_webhook(text)
 
             for _, row in leave.iterrows():
-                text = env.leave_message.format(**row)
+                data = outer_raw_data[
+                    outer_raw_data["playeruid"] == row["playeruid"]
+                ].iloc[0]
+                text = env.leave_message.format(**data)
+                text_broadcast = env.leave_broadcast_message.format(**data)
+                text_broadcast = text_broadcast.replace(" ", "_")
+                client.run("Broadcast", text_broadcast, enforce_id=False)
                 if env.line_notify_token:
                     send_line_notify(text)
                 if env.discord_webhook_url:
                     send_discord_webhook(text)
 
-            left_data = right_data
-            time.sleep(env.wait_time)
+            if (
+                env.restart_on_last_leave
+                and next_data.empty
+                and not self.prev_data.empty
+            ):
+                logger.info("Restarting the server...")
+                client.run("Save", enforce_id=False)
+                client.run("Shutdown", "5", enforce_id=False)
 
 
 if __name__ == "__main__":
     logger.info("start")
+    client = PalworldNotify()
 
     while True:
         try:
-            main()
+            client.check()
+            time.sleep(env.wait_time)
         except Exception as e:
             if __debug__:
                 raise e from e

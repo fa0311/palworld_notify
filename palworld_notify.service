@@ -6,6 +6,8 @@ After=syslog.target network.target nss-lookup.target network-online.target palwo
 
 [Service]
 Environment="LD_LIBRARY_PATH=./linux64"
+Environment="PYTHONOPTIMIZE=2"
+
 ExecStart=/home/steam/palworld_notify/.venv/bin/python /home/steam/palworld_notify/main.py
 
 ExecReload=/bin/kill -s HUP $MAINPID
