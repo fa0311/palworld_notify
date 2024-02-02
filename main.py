@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import traceback
 from enum import Enum
 from io import StringIO
 from logging import handlers
@@ -124,6 +125,14 @@ class PalworldNotify:
 
             join = outer_data[outer_data["_merge"] == "left_only"]
             leave = outer_data[outer_data["_merge"] == "right_only"]
+            restart = (
+                env.restart_on_last_leave
+                and next_data.empty
+                and not self.prev_data.empty
+            )
+
+            self.prev_data = next_data
+            self.prev_data_raw = next_data_raw
 
         with Client(env.ip, env.port, passwd=env.password) as client:
             if not join.empty or not leave.empty:
@@ -155,17 +164,10 @@ class PalworldNotify:
                 if env.discord_webhook_url:
                     send_discord_webhook(text)
 
-            if (
-                env.restart_on_last_leave
-                and next_data.empty
-                and not self.prev_data.empty
-            ):
+            if restart:
                 logger.info("Restarting the server...")
                 client.run("Save", enforce_id=False)
                 client.run("Shutdown", "5", enforce_id=False)
-
-            self.prev_data = next_data
-            self.prev_data_raw = next_data_raw
 
 
 if __name__ == "__main__":
@@ -178,8 +180,9 @@ if __name__ == "__main__":
             time.sleep(env.wait_time)
         except Exception as e:
             if __debug__:
-                raise e from e
+                raise e
             else:
-                logger.error(f"Error: {e}")
+                logger.error(f"{e.__class__.__name__}: {e}")
+                traceback.print_exc()
                 logger.info(f"Restarting in {env.wait_time} seconds...")
                 time.sleep(env.wait_time)
