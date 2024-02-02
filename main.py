@@ -97,77 +97,77 @@ class PalworldNotify:
     prev_data: Optional[pd.DataFrame] = None
     prev_data_raw: Optional[pd.DataFrame] = None
 
-    def check(self):
+    def run(self, *args):
         with Client(env.ip, env.port, passwd=env.password) as client:
-            players = client.run("ShowPlayers", enforce_id=False)
-            next_data_raw = pd.read_csv(StringIO(players))
+            return client.run(*args, enforce_id=False)
 
-            next_data = next_data_raw[next_data_raw["playeruid"] != 0]
-            next_data = next_data.drop(columns=["steamid"])
+    def check(self):
+        players = self.run("ShowPlayers")
+        next_data_raw = pd.read_csv(StringIO(players))
 
-            if self.prev_data is None:
-                self.prev_data = next_data
-            if self.prev_data_raw is None:
-                self.prev_data_raw = next_data_raw
+        next_data = next_data_raw[next_data_raw["playeruid"] != 0]
+        next_data = next_data.drop(columns=["steamid"])
 
-            outer_data = pd.merge(
-                next_data,
-                self.prev_data,
-                how="outer",
-                indicator=True,
-            )
-            outer_raw_data = pd.merge(
-                next_data_raw,
-                self.prev_data_raw,
-                how="outer",
-                indicator=True,
-            )
-
-            join = outer_data[outer_data["_merge"] == "left_only"]
-            leave = outer_data[outer_data["_merge"] == "right_only"]
-            restart = (
-                env.restart_on_last_leave
-                and next_data.empty
-                and not self.prev_data.empty
-            )
-
+        if self.prev_data is None:
             self.prev_data = next_data
+        if self.prev_data_raw is None:
             self.prev_data_raw = next_data_raw
 
-        with Client(env.ip, env.port, passwd=env.password) as client:
-            if not join.empty or not leave.empty:
-                logger.info("\n" + outer_data.to_string())
+        outer_data = pd.merge(
+            next_data,
+            self.prev_data,
+            how="outer",
+            indicator=True,
+        )
+        outer_raw_data = pd.merge(
+            next_data_raw,
+            self.prev_data_raw,
+            how="outer",
+            indicator=True,
+        )
 
-            for _, row in join.iterrows():
-                data = outer_raw_data[
-                    outer_raw_data["playeruid"] == row["playeruid"]
-                ].iloc[0]
-                text = env.join_message.format(**data)
-                text_broadcast = env.join_broadcast_message.format(**data)
-                text_broadcast = text_broadcast.replace(" ", "_")
-                client.run("Broadcast", text_broadcast, enforce_id=False)
-                if env.line_notify_token:
-                    send_line_notify(text)
-                if env.discord_webhook_url:
-                    send_discord_webhook(text)
+        join = outer_data[outer_data["_merge"] == "left_only"]
+        leave = outer_data[outer_data["_merge"] == "right_only"]
+        restart = (
+            env.restart_on_last_leave and next_data.empty and not self.prev_data.empty
+        )
 
-            for _, row in leave.iterrows():
-                data = outer_raw_data[
-                    outer_raw_data["playeruid"] == row["playeruid"]
-                ].iloc[0]
-                text = env.leave_message.format(**data)
-                text_broadcast = env.leave_broadcast_message.format(**data)
-                text_broadcast = text_broadcast.replace(" ", "_")
-                client.run("Broadcast", text_broadcast, enforce_id=False)
-                if env.line_notify_token:
-                    send_line_notify(text)
-                if env.discord_webhook_url:
-                    send_discord_webhook(text)
+        self.prev_data = next_data
+        self.prev_data_raw = next_data_raw
 
-            if restart:
-                logger.info("Restarting the server...")
-                client.run("Save", enforce_id=False)
-                client.run("Shutdown", "5", enforce_id=False)
+        if not join.empty or not leave.empty:
+            logger.info("\n" + outer_data.to_string())
+
+        for _, row in join.iterrows():
+            data = outer_raw_data[outer_raw_data["playeruid"] == row["playeruid"]].iloc[
+                0
+            ]
+            text = env.join_message.format(**data)
+            text_broadcast = env.join_broadcast_message.format(**data)
+            text_broadcast = text_broadcast.replace(" ", "_")
+            self.run("Broadcast", text_broadcast)
+            if env.line_notify_token:
+                send_line_notify(text)
+            if env.discord_webhook_url:
+                send_discord_webhook(text)
+
+        for _, row in leave.iterrows():
+            data = outer_raw_data[outer_raw_data["playeruid"] == row["playeruid"]].iloc[
+                0
+            ]
+            text = env.leave_message.format(**data)
+            text_broadcast = env.leave_broadcast_message.format(**data)
+            text_broadcast = text_broadcast.replace(" ", "_")
+            self.run("Broadcast", text_broadcast)
+            if env.line_notify_token:
+                send_line_notify(text)
+            if env.discord_webhook_url:
+                send_discord_webhook(text)
+
+        if restart:
+            logger.info("Restarting the server...")
+            self.run("Save")
+            self.run("Shutdown", "5")
 
 
 if __name__ == "__main__":
