@@ -167,22 +167,22 @@ class PalworldNotify:
         if restart:
             logger.info("Restarting the server...")
             self.run("Save")
+            time.sleep(5)
             self.run("Shutdown", "5")
 
 
 if __name__ == "__main__":
     logger.info("start")
-    client = PalworldNotify()
-
-    while True:
-        try:
+    try:
+        client = PalworldNotify()
+        while True:
             client.check()
             time.sleep(env.wait_time)
-        except Exception as e:
-            if __debug__:
-                raise e
-            else:
-                logger.error(f"{e.__class__.__name__}: {e}")
-                traceback.print_exc()
-                logger.info(f"Restarting in {env.wait_time} seconds...")
-                time.sleep(env.wait_time)
+    except Exception as e:
+        if __debug__:
+            raise e
+        else:
+            logger.error(f"{e.__class__.__name__}: {e}")
+            traceback.print_exc()
+            logger.info(f"Restarting in {env.wait_time} seconds...")
+            time.sleep(env.wait_time)
