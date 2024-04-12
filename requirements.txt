@@ -1,7 +1,7 @@
 annotated-types==0.6.0
 certifi==2023.11.17
 charset-normalizer==3.3.2
-idna==3.6
+idna==3.7
 numpy==1.26.3
 pandas==2.2.0
 pydantic==2.6.0
